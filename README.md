@@ -30,41 +30,41 @@ Simply execute `bash setup.sh` if you're running a bash.
 Optionally, if your environment don't have a bash. Run below
 commands manually, which should give you the abi your phone using.
 
-```bash
+`bash
 adb shell getprop ro.product.cpu.abi
-```
+`
 
 Push binaries into your device, change them into exectuable.
 
-```bash
+`bash
 adb push ./obj/local/<arch>/event_record /data/local/tmp/
 adb push ./obj/local/<arch>/event_replay /data/local/tmp/
 adb shell chmod 755 /data/local/tmp/event_*
 
-```
+`
 
-# Usage
+### Usage
 
 To test this application, you may enable the development option to
 visualize input taps first. Then, start recording.
 
-```bash
+`bash
 adb shell /data/local/tmp/event_record /sdcard/test.bin
-```
+`
 
 Perform actions, like slide around, tapping home or back.
 
 Halt the program using ctrl C. And then play them back.
 
-```bash
+`bash
 adb shell /data/local/tmp/event_replay /sdcard/test.bin
-```
+`
 
 You should see your previous actions are replayed pretty much
 exactly the same.
 	
 
-# Limitations
+### Limitations
 
 	1. Portability of recorded events is not of my consideration. The
 	   replayer assume playing events are all captured from the replaying
