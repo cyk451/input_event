@@ -5,111 +5,100 @@
 #include <unistd.h>
 #include <linux/input.h>
 #include <linux/time.h>
+#include <string.h>
 
 #include "uinput.h"
+#include "common.h"
 
-const char *EV_PREFIX  = "/dev/input/";
-const char *IN_FN = "/data/events";
 
-/* NB event4 is the compass -- not required for tests. */
-char *ev_devices[] = {"event0", "event1", "event2", "event3" /*, "event4" */};
-#define NUM_DEVICES (sizeof(ev_devices) / sizeof(char *))
+struct context {
+	int in_fd;
+	size_t num_event_fds;
+	struct pollfd *out_fds;
+	const char* in_fname;
+};
 
-int out_fds[NUM_DEVICES];
-int num_events;
-int in_fd;
-
-int init()
+int init(struct context* c)
 {
-	char buf[256];
-	unsigned i;
-	struct stat statinfo;
 
-	for(i = 0; i < NUM_DEVICES; i++) {
-		sprintf(buf, "%s%s", EV_PREFIX, ev_devices[i]);
-		out_fds[i] = open(buf, O_WRONLY | O_NDELAY);
-		if (out_fds[i] < 0) {
-			printf("Couldn't open output device\n");
+	if (c->in_fname != NULL) {
+		c->in_fd = open(c->in_fname, O_RDONLY);
+		if(c->in_fd < 0) {
+			printf("Couldn't open input file %d\n", c->in_fd);
 			return 1;
 		}
+	} else
+		c->in_fd = STDIN_FILENO;
+
+	c->num_event_fds = get_event_fds(&c->out_fds);
+	if (c->num_event_fds <= 0) {
+		return c->num_event_fds;
 	}
-
-	if(stat(IN_FN, &statinfo) == -1) {
-		printf("Couldn't stat input\n");
-		return 2;
-	}
-
-	num_events = statinfo.st_size / (sizeof(struct input_event) + sizeof(int));
-
-	if((in_fd = open(IN_FN, O_RDONLY)) < 0) {
-		printf("Couldn't open input\n");
-		return 3;
-	}
-
-	// Hacky ioctl init
-	ioctl (out_fds[3], UI_SET_EVBIT, EV_KEY);
-	ioctl (out_fds[3], UI_SET_EVBIT, EV_REP);
-	ioctl (out_fds[1], UI_SET_EVBIT, EV_ABS);
 
 	return 0;
 }
 
-int replay()
+// here we assume input device always the same
+int replay(struct context* c)
 {
-	struct timeval tdiff;
-	struct input_event event;
-	int i, outputdev;
+	struct timeval toffset;
+	// struct input_event event;
+	struct recorded_event re;
 
-	timerclear(&tdiff);
+	timerclear(&toffset);
 
-	for(i = 0; i < num_events; i++) {
+	while(1) {
 		struct timeval now, tevent, tsleep;
 
-		if(read(in_fd, &outputdev, sizeof(outputdev)) != sizeof(outputdev)) {
-			printf("Input read error\n");
-			return 1;
-		}
-
-		if(read(in_fd, &event, sizeof(event)) != sizeof(event)) {
-			printf("Input read error\n");
-			return 2;
+		if(read(c->in_fd, &re, sizeof(re)) != sizeof(re)) {
+			break;
 		}
 
 		gettimeofday(&now, NULL);
-		if (!timerisset(&tdiff)) {
-			timersub(&now, &event.time, &tdiff);
+		if (!timerisset(&toffset)) {
+			timersub(&now, &re.event.time, &toffset);
 		}
 
-		timeradd(&event.time, &tdiff, &tevent);
+		timeradd(&re.event.time, &toffset, &tevent);
 		timersub(&tevent, &now, &tsleep);
 		if (tsleep.tv_sec > 0 || tsleep.tv_usec > 100)
 			select(0, NULL, NULL, NULL, &tsleep);
 
-		event.time = tevent;
+		re.event.time = tevent;
 
-		if(write(out_fds[outputdev], &event, sizeof(event)) != sizeof(event)) {
-			printf("Output write error\n");
+		if(write(c->out_fds[re.fd].fd, &re.event, 
+					sizeof(re.event)) != sizeof(re.event)) {
+			fprintf(stderr, "Output write error\n");
 			return 2;
 		}
 
-		//		printf("input %d, time %ld.%06ld, type %d, code %d, value %d\n", outputdev,
-		//				event.time.tv_sec, event.time.tv_usec, event.type, event.code, event.value);
 	}
 
 	return 0;
 }
 
-int main(void)
+void usage() {
+	printf("replay [filename]\n");
+	printf("\tIf filename is not given stdin is used.\n");
+}
+
+int main(int argc, char** args)
 {
-	if(init() != 0) {
-		printf("init failed\n");
-		return 1;
+	struct context c;
+	int rc;
+
+	memset(&c, 0, sizeof(c));
+
+	if (argc >= 2) {
+		c.in_fname = (const char*)(args[1]);
 	}
 
-	if(replay() != 0) {
-		printf("replay failed\n");
-		return 2;
+	rc = init(&c);
+	if(rc != 0) {
+		fprintf(stderr, "init failed %d\n", rc);
+		return rc;
 	}
-	return 0;
+
+	return replay(&c);
 }
 
