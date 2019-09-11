@@ -11,7 +11,7 @@ struct recorded_event {
 
 // List all input event fs as pollfds.
 // Returns num fds opened, and negative value upon errors.
-int get_event_fds(struct pollfd**fds);
+size_t get_event_fds(struct pollfd**fds);
 
 #ifdef DEBUG
 #define dpf(...) printf("debug: " __VA_ARGS__)

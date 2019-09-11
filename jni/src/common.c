@@ -39,7 +39,7 @@ static size_t count_events() {
 	return num;
 }
 
-int get_event_fds(struct pollfd** pfds) {
+size_t get_event_fds(struct pollfd** pfds) {
 	int n, i = 0;
 	DIR *dp;
 	struct pollfd* fds = NULL;
@@ -49,7 +49,7 @@ int get_event_fds(struct pollfd** pfds) {
 	n = count_events();
 
 	if (n <= 0)
-		return n;
+		return 0;
 
 	dpf("%u devices to open\n", n);
 
@@ -59,7 +59,7 @@ int get_event_fds(struct pollfd** pfds) {
 
 	fds = (struct pollfd*)malloc(sizeof(struct pollfd) * n);
 	if (fds < 0)
-		return -1;
+		return 0;
 
 	dp = opendir(EV_PREFIX);
 	if (!dp)  
@@ -76,7 +76,7 @@ int get_event_fds(struct pollfd** pfds) {
 		nfd = open(buf, O_RDWR | O_NDELAY);
 		if(nfd < 0) {
 			fprintf(stderr, "Couldn't open input device %s\n", buf);
-			return -1;
+			return 0;
 		}
 
 		dpf("%s is as device %d\n", buf, i);

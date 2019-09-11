@@ -34,7 +34,7 @@ int init(struct context * c)
 		c->out_fd = STDOUT_FILENO;
 
 	c->num_event_fds = get_event_fds(&c->in_fds);
-	if (c->num_event_fds < 0)
+	if (!c->num_event_fds)
 		return c->num_event_fds;
 
 	return 0;
