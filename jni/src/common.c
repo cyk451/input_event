@@ -9,6 +9,7 @@
 #include "uinput.h"
 #include "common.h"
 
+/*
 static size_t count_events() {
 	struct dirent *ep; 
 	size_t num = 0;
@@ -38,33 +39,76 @@ static size_t count_events() {
 	closedir(dp);
 	return num;
 }
+*/
 
 size_t get_event_fds(struct pollfd** pfds) {
 	int n, i = 0;
-	DIR *dp;
+	// DIR *dp;
 	struct pollfd* fds = NULL;
-	struct dirent *ep; 
+	// struct dirent *ep; 
+	struct dirent **namelist;
 	char buf[256];
 
-	n = count_events();
+	// n = count_events();
 
-	if (n <= 0)
-		return 0;
+	// if (n <= 0)
+		// return 0;
 
-	dpf("%u devices to open\n", n);
 
+	/*
 	dp = opendir(EV_PREFIX);
 	if (!dp)  
 		return 0;
+		*/
+
+	/*
+	dp = opendir(EV_PREFIX);
+	if (!dp)  
+		return 0;
+		*/
+
+	n = scandir(EV_PREFIX /* dir */
+			, &namelist /* out list */
+			, NULL /* filter func ptr */
+			, alphasort /* sorting comp func ptr */
+			);
+
+	if (n < 0) {
+		return 0;
+	}
+	dpf("%u devices to open\n", n);
 
 	fds = (struct pollfd*)malloc(sizeof(struct pollfd) * n);
 	if (fds < 0)
 		return 0;
 
-	dp = opendir(EV_PREFIX);
-	if (!dp)  
-		return 0;
 
+	while (n--) {
+		int nfd;
+
+		if (namelist[n]->d_name[0] == '.')
+			continue;
+
+		snprintf(buf, 256, "%s/%s", EV_PREFIX, namelist[n]->d_name);
+		// TODO: make open flag a func arg.
+		nfd = open(buf, O_RDWR | O_NDELAY);
+		if(nfd < 0) {
+			fprintf(stderr, "Couldn't open input device %s\n", buf);
+			return 0;
+		}
+
+		dpf("%s is as device %d\n", buf, i);
+
+		fds[i].fd = nfd;
+		fds[i].events = POLLIN;
+		i++;
+		free(namelist[n]);
+
+	}
+
+	free(namelist);
+
+	/*
 	while ((ep = readdir(dp))) {
 		int nfd;
 
@@ -87,6 +131,7 @@ size_t get_event_fds(struct pollfd** pfds) {
 	}
 
 	closedir(dp);
+	*/
 	*pfds = fds;
 	return i;
 }
